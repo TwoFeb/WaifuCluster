@@ -66,7 +66,7 @@ pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
     ```bash
     python FanArtSorting.py
     ```
-4.  **查看结果**：脚本运行完成后，会在 `OUT_DIR`（默认为 `./sorted_output`）目录下创建多个文件夹（`character_000`, `character_001`, ...），每个文件夹包含一组被判定为同一角色的图片。无法明确分组的图片会放入 `noise` 文件夹。
+4.  **查看结果**：脚本运行完成后，会在 `OUT_DIR`（默认为 `./sorted`）目录下创建多个文件夹（`character_000`, `character_001`, ...），每个文件夹包含一组被判定为同一角色的图片。无法明确分组的图片会放入 `noise` 文件夹。
 
 ## ⚙️ 配置参数说明
 
@@ -85,7 +85,7 @@ pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
 脚本运行后，输出目录结构如下：
 
 ```
-sorted_output/
+sorted/
 ├── character_000/      # 被判定为第0个角色的所有原图
 │   ├── image1.jpg
 │   └── image2.png
