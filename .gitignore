@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+fanart/
+crops/
+sorted/
+.DS_Store
+Thumbs.db
+*.npy
+.hf_cache/

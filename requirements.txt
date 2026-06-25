@@ -1,0 +1,6 @@
+numpy
+scikit-learn
+hdbscan
+umap-learn
+pillow
+dghs-imgutils[gpu]
