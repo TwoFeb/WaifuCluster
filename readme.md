@@ -1,5 +1,3 @@
-
-```markdown
 # 🎭 动漫二创图片自动整理工具
 
 一个基于无监督机器学习的动漫同人图片自动整理工具。它能根据图片中的**角色身份**，将杂乱的图片库自动分类到不同的文件夹中，而**无需预先知道角色是谁**或进行任何人工标注。
@@ -130,14 +128,9 @@ sorted_output/
 *   [ ] 添加 Gradio 或 PyQT 图形界面，提升非技术用户体验。
 *   [ ] 引入 FAISS 进行近似最近邻搜索，优化大规模图片库的聚类速度。
 
-## 📄 许可证
-
-本项目代码遵循 [MIT License](LICENSE)。
 
 ## 🙏 致谢
 
 *   [DeepGHS](https://github.com/deepghs) 团队：提供了强大的 `imgutils` 库、CCIP 模型和动漫人物检测模型。
 *   [scikit-learn](https://scikit-learn.org/) 和 [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan) 社区：提供了核心的聚类算法实现。
 *   [ONNX Runtime](https://onnxruntime.ai/)：提供了高效的跨平台模型推理引擎。
-
-```
