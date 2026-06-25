@@ -1,17 +1,7 @@
 import os
-# 【新增】强行指定 Windows 加载 CUDA DLL 的路径
-cuda_bin_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin"
-if os.path.exists(cuda_bin_path):
-    os.add_dll_directory(cuda_bin_path)
-else:
-    print(f"警告：未找到 CUDA 安装路径: {cuda_bin_path}")
-# 锁死独显：在 CUDA 逻辑里，你的 RTX 3070 是第 0 块卡
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   
-
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache")
-
-import glob, shutil
+import time
+import glob
+import shutil
 import numpy as np
 from PIL import Image
 from imgutils.detect import detect_heads
@@ -19,17 +9,36 @@ from imgutils.metrics import ccip_batch_differences
 import hdbscan
 import onnxruntime as ort
 
+# ---------- 计时开始 ----------
+total_start = time.perf_counter()
+
+# ---------- CUDA 和路径设置 ----------
+cuda_bin_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin"
+if os.path.exists(cuda_bin_path):
+    os.add_dll_directory(cuda_bin_path)
+else:
+    print(f"警告：未找到 CUDA 安装路径: {cuda_bin_path}")
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache")
+
 print("Providers before imports:", ort.get_available_providers())
 
+# ---------- 定义文件夹 ----------
 SRC_DIR = "./fanart"          # 原始图库
 CROP_DIR = "./crops"          # 裁切后的人物子图
 OUT_DIR = "./sorted"          # 最终按角色分文件夹输出
-os.makedirs(CROP_DIR, exist_ok=True)
-os.makedirs(OUT_DIR, exist_ok=True)
 
-# 1. 检测+裁切：把每张图里的每个角色单独存一张
-crop_records = []   # [(crop_path, src_path, head_idx), ...]
-for img_path in glob.glob(os.path.join(SRC_DIR, "*.*")):
+# ---------- 清空并重建 crops/ 和 sorted/ ----------
+for dir_path in [CROP_DIR, OUT_DIR]:
+    shutil.rmtree(dir_path, ignore_errors=True)   # 删除
+    os.makedirs(dir_path, exist_ok=True)          # 新建空目录
+
+# ---------- 1. 裁切阶段 ----------
+stage_start = time.perf_counter()
+crop_records = []
+for img_path in glob.glob(os.path.join(SRC_DIR, "*.*")):   #把每张图里的每个角色单独存一张
     try:
         img = Image.open(img_path).convert("RGB")
     except Exception:
@@ -49,25 +58,36 @@ for img_path in glob.glob(os.path.join(SRC_DIR, "*.*")):
         crop.save(crop_path)
         crop_records.append((crop_path, img_path, i))
 
-# 2. CCIP 提取特征：直接用 imgutils 的批量接口
-#    ccip_batch_differences 返回 N×N 距离矩阵，转成预距离矩阵给 HDBSCAN
+print(f"✅ 裁切完成，共提取 {len(crop_records)} 个头部，耗时 {time.perf_counter() - stage_start:.2f} 秒")
+
+# ---------- 2. CCIP 特征提取 ----------
+stage_start = time.perf_counter()
 crop_paths = [r[0] for r in crop_records]
 diff_matrix = ccip_batch_differences(crop_paths)   # 越小越相似
+print("min =", diff_matrix.min())
+print("max =", diff_matrix.max())
+print("mean =", diff_matrix.mean())
+print("median =", np.median(diff_matrix))
 np.save("./diff_matrix.npy", diff_matrix)
+print(f"✅ 特征提取完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
-# 3. HDBSCAN 聚类（precomputed 距离）
-
-# 【修复】将矩阵强制转换为 float64 类型，并确保数据是连续的
+# ---------- 3. HDBSCAN 聚类 ----------
+stage_start = time.perf_counter()
 diff_matrix_64 = diff_matrix.astype(np.float64)
 clusterer = hdbscan.HDBSCAN(
-    metric="precomputed",
-    min_cluster_size=2,        # 至少2张才算一个角色簇，可调
-    min_samples=1,
-    cluster_selection_method="eom",
+    metric="precomputed", # 使用预计算的距离矩阵
+    min_cluster_size=2,   # 至少2张才算一个角色簇，可调
+    min_samples=1,        # 至少1张才算一个核心点，可调
+    cluster_selection_epsilon=0.05,  # 聚类时的距离阈值，可调
+    cluster_selection_method="leaf", #  "eom" or "leaf"
 )
-labels = clusterer.fit_predict(diff_matrix.astype(np.float64))
+labels = clusterer.fit_predict(diff_matrix_64)
+n_noise = list(labels).count(-1)
+print(f"噪声率: {n_noise / len(labels):.1%}")
+print(f"✅ 聚类完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
-# 4. 落盘
+# ---------- 4. 落盘 ----------
+stage_start = time.perf_counter()
 for (crop_path, src_path, _), label in zip(crop_records, labels):
     if label == -1:
         target_dir = os.path.join(OUT_DIR, "noise")
@@ -77,5 +97,9 @@ for (crop_path, src_path, _), label in zip(crop_records, labels):
     # 复制原图（而非裁切图），方便人工核对
     shutil.copy2(src_path, target_dir)
 
-print(f"共 {len(set(labels)) - (1 if -1 in labels else 0)} 个角色簇，"
-      f"噪声 {list(labels).count(-1)} 张")
+print(f"✅ 落盘完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
+
+# ---------- 汇总 ----------
+n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+print(f"共 {n_clusters} 个角色簇，噪声 {list(labels).count(-1)} 张")
+print(f"🏁 整个脚本运行总耗时 {time.perf_counter() - total_start:.2f} 秒")
