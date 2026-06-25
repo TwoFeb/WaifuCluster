@@ -29,7 +29,7 @@
 
 ```bash
 # 进入项目目录
-cd AnimeAvatarSortingProject
+cd D:/WaifuCluster
 
 # 创建虚拟环境
 python -m venv .venv
@@ -61,10 +61,10 @@ pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
 ## 🚀 快速开始
 
 1.  **准备图片**：将你需要整理的动漫图片放入一个文件夹（例如 `./input_images`）。
-2.  **配置路径**：打开 `FanArtSorting.py` 脚本，修改开头的 `SRC_DIR` 变量为你的图片文件夹路径。
+2.  **配置路径**：打开 `WaifuCluster.py` 脚本，修改开头的 `SRC_DIR` 变量为你的图片文件夹路径。
 3.  **运行脚本**：
     ```bash
-    python FanArtSorting.py
+    python WaifuCluster.py
     ```
 4.  **查看结果**：脚本运行完成后，会在 `OUT_DIR`（默认为 `./sorted`）目录下创建多个文件夹（`character_000`, `character_001`, ...），每个文件夹包含一组被判定为同一角色的图片。无法明确分组的图片会放入 `noise` 文件夹。
 
