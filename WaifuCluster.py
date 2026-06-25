@@ -61,8 +61,8 @@ np.save("./diff_matrix.npy", diff_matrix)
 diff_matrix_64 = diff_matrix.astype(np.float64)
 clusterer = hdbscan.HDBSCAN(
     metric="precomputed",
-    min_cluster_size=3,        # 至少3张才算一个角色簇，可调
-    min_samples=2,
+    min_cluster_size=2,        # 至少2张才算一个角色簇，可调
+    min_samples=1,
     cluster_selection_method="eom",
 )
 labels = clusterer.fit_predict(diff_matrix.astype(np.float64))
