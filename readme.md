@@ -109,15 +109,19 @@ sorted/
 ## ❓ 常见问题
 
 **Q: 运行时出现 `cublasLt64_12.dll missing` 或 `Failed to create CUDAExecutionProvider` 警告？**
+
 **A:** 这是ONNX Runtime尝试加载GPU支持但失败的无害警告，它会自动回退到CPU模式。如果你不想看到此警告，可以安装纯CPU版的ONNX Runtime：`pip uninstall onnxruntime-gpu onnxruntime -y && pip install onnxruntime`。如果想用GPU，请确保已安装CUDA 12.x和cuDNN 9.x，并将其`bin`目录加入系统`PATH`环境变量。
 
 **Q: 聚类效果不好，很多图片被分到了 `noise` 文件夹？**
+
 **A:** 尝试调小 `min_cluster_size` 和 `min_samples` 参数，让算法对噪声更宽容。也可以尝试将 `cluster_selection_method` 改为 `'leaf'`，看是否能生成更细的簇。
 
 **Q: 同一个角色被分到了多个文件夹？**
+
 **A:** 这可能是因为该角色画风差异过大，或CCIP模型对某些细节（如发型变化）不够敏感。可以尝试调大 `min_cluster_size`，或后处理时手动合并相似文件夹。
 
 **Q: 首次运行下载模型很慢？**
+
 **A:** 模型权重从HuggingFace Hub下载，国内网络可能不稳定。可以尝试设置镜像源或使用代理。下载完成后会缓存在本地（`~/.cache/huggingface`），后续运行无需再次下载。
 
 ## 🗺️ 后续优化方向
