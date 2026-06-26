@@ -1,5 +1,4 @@
 import os
-<<<<<<< HEAD:WaifuClusterDirectML.py
 import sys
 
 os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
