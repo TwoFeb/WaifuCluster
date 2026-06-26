@@ -9,6 +9,10 @@ from imgutils.metrics import ccip_batch_differences
 import hdbscan
 import onnxruntime as ort
 
+# ---------- 设置代理 ----------
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7897"
+
 # ---------- 计时开始 ----------
 total_start = time.perf_counter()
 
