@@ -1,15 +1,11 @@
 import os
-# 【新增】强行指定 Windows 加载 CUDA DLL 的路径
-cuda_bin_path = r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin"
-if os.path.exists(cuda_bin_path):
-    os.add_dll_directory(cuda_bin_path)
-else:
-    print(f"警告：未找到 CUDA 安装路径: {cuda_bin_path}")
-# 锁死独显：在 CUDA 逻辑里，你的 RTX 3070 是第 0 块卡
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"   
+import sys
+
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7897" #设置系统代理，自改端口
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache")
+os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache") #初始化到项目目录下，避免占用系统盘
 
 import glob, shutil
 import numpy as np
@@ -19,6 +15,8 @@ from imgutils.metrics import ccip_batch_differences
 import hdbscan
 import onnxruntime as ort
 
+# 打印当前 Windows 下可用的硬件加速提供商
+# 安装完 onnxruntime-directml 后，这里应该会显示 ['DmlExecutionProvider', 'CPUExecutionProvider']
 print("Providers before imports:", ort.get_available_providers())
 
 SRC_DIR = "./fanart"          # 原始图库
@@ -27,7 +25,11 @@ OUT_DIR = "./sorted"          # 最终按角色分文件夹输出
 os.makedirs(CROP_DIR, exist_ok=True)
 os.makedirs(OUT_DIR, exist_ok=True)
 
+# ---------- 计时开始 ----------
+total_start = time.perf_counter()
+
 # 1. 检测+裁切：把每张图里的每个角色单独存一张
+stage_start = time.perf_counter()
 crop_records = []   # [(crop_path, src_path, head_idx), ...]
 for img_path in glob.glob(os.path.join(SRC_DIR, "*.*")):
     try:
@@ -48,24 +50,33 @@ for img_path in glob.glob(os.path.join(SRC_DIR, "*.*")):
         crop_path = os.path.join(CROP_DIR, crop_name)
         crop.save(crop_path)
         crop_records.append((crop_path, img_path, i))
+print(f"✅ 裁切完成，共提取 {len(crop_records)} 个头部，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # 2. CCIP 提取特征：直接用 imgutils 的批量接口
 #    ccip_batch_differences 返回 N×N 距离矩阵，转成预距离矩阵给 HDBSCAN
+stage_start = time.perf_counter()
 crop_paths = [r[0] for r in crop_records]
+if not crop_paths:
+    print("未检测到任何头像，程序退出。")
+    sys.exit()
+
 diff_matrix = ccip_batch_differences(crop_paths)   # 越小越相似
 np.save("./diff_matrix.npy", diff_matrix)
+print(f"✅ 特征提取完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # 3. HDBSCAN 聚类（precomputed 距离）
-
-# 【修复】将矩阵强制转换为 float64 类型，并确保数据是连续的
+# 将矩阵强制转换为 float64 类型，并确保数据是连续的
+stage_start = time.perf_counter()
 diff_matrix_64 = diff_matrix.astype(np.float64)
 clusterer = hdbscan.HDBSCAN(
     metric="precomputed",
-    min_cluster_size=3,        # 至少3张才算一个角色簇，可调
-    min_samples=2,
-    cluster_selection_method="eom",
+    min_cluster_size=2,        # 至少2张才算一个角色簇，可调
+    min_samples=1,
+    epsilon=0.05,
+    cluster_selection_method="leaf",
 )
-labels = clusterer.fit_predict(diff_matrix.astype(np.float64))
+labels = clusterer.fit_predict(diff_matrix_64)
+print(f"✅ 聚类完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # 4. 落盘
 for (crop_path, src_path, _), label in zip(crop_records, labels):
@@ -76,6 +87,8 @@ for (crop_path, src_path, _), label in zip(crop_records, labels):
     os.makedirs(target_dir, exist_ok=True)
     # 复制原图（而非裁切图），方便人工核对
     shutil.copy2(src_path, target_dir)
-
-print(f"共 {len(set(labels)) - (1 if -1 in labels else 0)} 个角色簇，"
-      f"噪声 {list(labels).count(-1)} 张")
+print(f"✅ 落盘完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
+# 5. 输出统计信息
+n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+print(f"共 {n_clusters} 个角色簇，噪声 {list(labels).count(-1)} 张")
+print(f"🏁 整个脚本运行总耗时 {time.perf_counter() - total_start:.2f} 秒")

@@ -60,7 +60,7 @@ pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
 
 ## 🚀 快速开始
 
-1.  **准备图片**：将你需要整理的动漫图片放入一个文件夹（例如 `./input_images`）。
+1.  **准备图片**：将你需要整理的动漫图片放入一个文件夹（例如 `./fanart`）。
 2.  **配置路径**：打开 `WaifuCluster.py` 脚本，修改开头的 `SRC_DIR` 变量为你的图片文件夹路径。
 3.  **运行脚本**：
     ```bash

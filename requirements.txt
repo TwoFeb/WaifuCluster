@@ -1,6 +1,10 @@
+# 基础核心依赖
 numpy
-scikit-learn
-hdbscan
-umap-learn
 pillow
-dghs-imgutils[gpu]
+hdbscan
+
+# 图像处理与动漫角色检测增强库
+dghs-imgutils
+
+# 专为 Windows AMD 显卡（DirectX 12）硬件加速提供的推理引擎
+onnxruntime-directml
