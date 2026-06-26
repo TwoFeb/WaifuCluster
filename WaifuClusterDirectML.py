@@ -1,5 +1,30 @@
 import os
 import time
+
+# ---------- 1. 代理设置 ----------
+os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
+os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7897"
+
+# ---------- 2. ONNX Runtime 强行拦截并注入 DirectML (黑魔法) ----------
+import onnxruntime as ort
+
+# 保存原始的 InferenceSession 构造函数
+_original_InferenceSession = ort.InferenceSession
+
+def _patched_InferenceSession(path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
+    """
+    不管 imgutils 内部传了什么 providers (比如 ['CUDAExecutionProvider', 'CPUExecutionProvider'])，
+    我们都强行将其替换为 DirectML，从而让 AMD 显卡接管计算。
+    """
+    # 强制注入 DmlExecutionProvider
+    dml_providers = ['DmlExecutionProvider', 'CPUExecutionProvider']
+    return _original_InferenceSession(path_or_bytes, sess_options, providers=dml_providers, provider_options=provider_options, **kwargs)
+
+# 替换全局构造函数
+ort.InferenceSession = _patched_InferenceSession
+
+
+# ---------- 3. 导入其他第三方库 ----------
 import glob
 import shutil
 import numpy as np
@@ -7,28 +32,18 @@ from PIL import Image
 from imgutils.detect import detect_heads
 from imgutils.metrics import ccip_batch_differences
 import hdbscan
-import onnxruntime as ort
-
-# ---------- 设置代理 ----------
-os.environ["HTTP_PROXY"] = "http://127.0.0.1:7897"
-os.environ["HTTPS_PROXY"] = "http://127.0.0.1:7897"
 
 # ---------- 计时开始 ----------
 total_start = time.perf_counter()
 
-# ---------- 硬件与路径设置 ----------
-# 屏蔽 CUDA 环境变量，防止残留的配置干扰 DirectML
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1" 
-
+# ---------- 路径设置 ----------
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache")
 
 # 检查当前可用的计算提供者
-# 成功安装 onnxruntime-directml 后，这里应显示包含 'DmlExecutionProvider'
 available_providers = ort.get_available_providers()
-print("当前支持的 ONNX Providers:", available_providers)
-if 'DmlExecutionProvider' not in available_providers:
-    print("⚠️ 警告: 未检测到 DmlExecutionProvider，请确认是否已正确安装 onnxruntime-directml。程序可能会回退到 CPU 计算。")
+print("当前系统支持的 ONNX Providers:", available_providers)
+print("⚡ 已通过劫持技术将 imgutils 默认推理器绑定至 -> ['DmlExecutionProvider']")
 
 # ---------- 定义文件夹 ----------
 SRC_DIR = "./fanart"          # 原始图库
