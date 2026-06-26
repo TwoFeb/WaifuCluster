@@ -8,3 +8,4 @@ sorted/
 Thumbs.db
 *.npy
 .hf_cache/
+diff_matrix.npy
