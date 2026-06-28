@@ -90,30 +90,19 @@ np.save("./diff_matrix.npy", diff_matrix)
 print(f"✅ 特征提取完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 
-# ---------- 3. HDBSCAN 聚类 ----------
+# ---------- 3. 聚类 (使用官方 CCIP OPTICS 算法) ----------
 stage_start = time.perf_counter()
-diff_matrix_64 = diff_matrix.astype(np.float64)
-# ---------- 3.1.自动扫描最佳 Epsilon -------
-print("\n🔍 --- 自动扫描最佳 Epsilon ---")
-for eps in [0.05, 0.08, 0.10, 0.12, 0.14]:
-    c = hdbscan.HDBSCAN(
-        metric="precomputed", min_cluster_size=2, min_samples=1,
-        cluster_selection_epsilon=eps, cluster_selection_method="leaf"
-    )
-    lab = c.fit_predict(diff_matrix_64)
-    n_c = len(set(lab)) - (1 if -1 in lab else 0)
-    n_n = list(lab).count(-1)
-    print(f"Epsilon: {eps:.2f} | 簇数: {n_c:>3} | 噪声: {n_n:>3} 张")
-print("------------------------------\n")
 
-clusterer = hdbscan.HDBSCAN(
-    metric="precomputed", # 使用预计算的距离矩阵
-    min_cluster_size=2,   # 至少2张才算一个角色簇，可调
-    min_samples=1,        # 至少1张才算一个核心点，可调
-    cluster_selection_epsilon=0.08,  # 聚类时的距离阈值，可调
-    cluster_selection_method="leaf", #  "eom" or "leaf"
+from imgutils.metrics import ccip_clustering
+
+# 直接传入裁切图的路径列表，算法内部会自动处理特征比对和密度计算
+labels_list = ccip_clustering(
+    crop_paths,
+    method='optics',    # OPTICS 比 HDBSCAN 更适合多角色大杂烩
+    min_samples=2       # 相当于 min_cluster_size=2
 )
-labels = clusterer.fit_predict(diff_matrix_64)
+labels = np.array(labels_list)
+
 n_noise = list(labels).count(-1)
 print(f"噪声率: {n_noise / len(labels):.1%}")
 print(f"✅ 聚类完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
@@ -127,8 +116,8 @@ for (crop_path, src_path, _), label in zip(crop_records, labels):
         target_dir = os.path.join(OUT_DIR, f"character_{label:03d}")
     os.makedirs(target_dir, exist_ok=True)
     # 复制原图（而非裁切图），方便人工核对
-    shutil.copy2(src_path, target_dir)
-
+    #shutil.copy2(src_path, target_dir)
+    shutil.copy2(crop_path, target_dir)  # 也可以只复制裁切图
 print(f"✅ 落盘完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # ---------- 汇总 ----------

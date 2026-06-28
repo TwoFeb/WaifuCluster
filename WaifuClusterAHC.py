@@ -13,11 +13,17 @@ _original_InferenceSession = ort.InferenceSession
 
 def _patched_InferenceSession(path_or_bytes, sess_options=None, providers=None, provider_options=None, **kwargs):
     """
-    不管 imgutils 内部传了什么 providers (比如 ['CUDAExecutionProvider', 'CPUExecutionProvider'])，
+    不管 imgutils 内部传了什么 providers，
     我们都强行将其替换为 DirectML，从而让 显卡接管计算。
     """
     # 强制注入 DmlExecutionProvider
     dml_providers = ['DmlExecutionProvider', 'CPUExecutionProvider']
+    
+    # 如果你有多张显卡，想强制指定 RX6800XT，可以取消下面的注释并设置正确的 device_id (通常是 0)
+    # if provider_options is None:
+    #     provider_options = [{}]
+    # provider_options[0] = {'device_id': '0'}
+    
     return _original_InferenceSession(path_or_bytes, sess_options, providers=dml_providers, provider_options=provider_options, **kwargs)
 
 # 替换全局构造函数
@@ -31,7 +37,7 @@ import numpy as np
 from PIL import Image
 from imgutils.detect import detect_heads
 from imgutils.metrics import ccip_batch_differences
-import hdbscan
+from sklearn.cluster import AgglomerativeClustering
 
 # ---------- 计时开始 ----------
 total_start = time.perf_counter()
@@ -42,6 +48,7 @@ os.environ["HF_HOME"] = os.path.join(PROJECT_DIR, ".hf_cache")
 
 # 检查当前可用的计算提供者
 available_providers = ort.get_available_providers()
+print(f"可用计算提供者: {available_providers}")
 
 # ---------- 定义文件夹 ----------
 SRC_DIR = "./fanart"          # 原始图库
@@ -90,48 +97,44 @@ np.save("./diff_matrix.npy", diff_matrix)
 print(f"✅ 特征提取完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 
-# ---------- 3. HDBSCAN 聚类 ----------
+# ---------- 3. 聚类 (使用 凝聚层次聚类) ----------
 stage_start = time.perf_counter()
-diff_matrix_64 = diff_matrix.astype(np.float64)
-# ---------- 3.1.自动扫描最佳 Epsilon -------
-print("\n🔍 --- 自动扫描最佳 Epsilon ---")
-for eps in [0.05, 0.08, 0.10, 0.12, 0.14]:
-    c = hdbscan.HDBSCAN(
-        metric="precomputed", min_cluster_size=2, min_samples=1,
-        cluster_selection_epsilon=eps, cluster_selection_method="leaf"
-    )
-    lab = c.fit_predict(diff_matrix_64)
-    n_c = len(set(lab)) - (1 if -1 in lab else 0)
-    n_n = list(lab).count(-1)
-    print(f"Epsilon: {eps:.2f} | 簇数: {n_c:>3} | 噪声: {n_n:>3} 张")
-print("------------------------------\n")
 
-clusterer = hdbscan.HDBSCAN(
-    metric="precomputed", # 使用预计算的距离矩阵
-    min_cluster_size=2,   # 至少2张才算一个角色簇，可调
-    min_samples=1,        # 至少1张才算一个核心点，可调
-    cluster_selection_epsilon=0.08,  # 聚类时的距离阈值，可调
-    cluster_selection_method="leaf", #  "eom" or "leaf"
+# 使用凝聚层次聚类，传入预计算的距离矩阵 (diff_matrix)
+# distance_threshold 是一个控制聚类松紧的关键参数，越小则同类要求越严格
+# 这里设置 0.6 作为默认值，你可以根据上面的 print 输出的 mean/median 适当调整
+clustering = AgglomerativeClustering(
+    n_clusters=None,
+    metric='precomputed',
+    linkage='average',
+    distance_threshold=0.116
 )
-labels = clusterer.fit_predict(diff_matrix_64)
-n_noise = list(labels).count(-1)
-print(f"噪声率: {n_noise / len(labels):.1%}")
+
+labels = clustering.fit_predict(diff_matrix)
+
+# 层次聚类默认不会有 -1 的噪声点，所有点都会归入某个簇
+# 如果你想把极小簇（例如只有1个样本的簇）视作噪声，可以自行处理，这里保持全部分类
+n_noise = 0 
 print(f"✅ 聚类完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # ---------- 4. 落盘 ----------
 stage_start = time.perf_counter()
 for (crop_path, src_path, _), label in zip(crop_records, labels):
+    # 如果希望将原图复制过去，将下一行的注释取消，并注释掉复制裁切图的代码
+    # target_dir = os.path.join(OUT_DIR, f"character_{label:03d}")
+    
+    # 保留你原来的逻辑
     if label == -1:
         target_dir = os.path.join(OUT_DIR, "noise")
     else:
         target_dir = os.path.join(OUT_DIR, f"character_{label:03d}")
     os.makedirs(target_dir, exist_ok=True)
-    # 复制原图（而非裁切图），方便人工核对
-    shutil.copy2(src_path, target_dir)
-
+    
+    shutil.copy2(crop_path, target_dir)  # 复制裁切图
+    
 print(f"✅ 落盘完成，耗时 {time.perf_counter() - stage_start:.2f} 秒")
 
 # ---------- 汇总 ----------
 n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-print(f"共 {n_clusters} 个角色簇，噪声 {list(labels).count(-1)} 张")
+print(f"共 {n_clusters} 个角色簇")
 print(f"🏁 整个脚本运行总耗时 {time.perf_counter() - total_start:.2f} 秒")

@@ -2,31 +2,33 @@
 
 一个基于无监督机器学习的动漫同人图片自动整理工具。它能根据图片中的**角色身份**，将杂乱的图片库自动分类到不同的文件夹中，而**无需预先知道角色是谁**或进行任何人工标注。
 
+针对不同的显卡生态和聚类偏好，本项目提供了多个版本的脚本，支持 Nvidia CUDA 以及 AMD/Intel DirectML 硬件加速，并集成了多种先进的聚类算法（HDBSCAN、OPTICS、凝聚层次聚类）。
+
 ## ✨ 项目特点
 
-*   **无监督聚类**：无需标注数据，利用对比学习模型和密度聚类算法自动发现角色分组。
-*   **动漫专用**：使用针对动漫角色优化的检测模型和特征提取模型，有效处理不同画风、视角和服饰下的同一角色。
+*   **多硬件加速支持**：同时提供 Nvidia CUDA 和 DirectML (AMD/Intel) 加速方案，A 卡/I 卡用户也能享受 GPU 加速。
+*   **多聚类算法可选**：内置 HDBSCAN、CCIP OPTICS、凝聚层次聚类 (AHC) 三种算法，针对不同的图库特点可选择最优策略。
+*   **无监督聚类**：无需标注数据，利用对比学习模型自动发现角色分组。
+*   **动漫专用模型**：使用针对动漫角色优化的 `head_detect_v2.0_x_yv11` 检测模型和 **CCIP** 特征提取模型，有效处理不同画风、视角和服饰下的同一角色。
 *   **自动化流程**：一键完成人物检测、裁切、特征提取、聚类和文件整理全流程。
-*   **灵活可调**：通过修改脚本中的参数，可以轻松调整聚类的精细度和性能。
 
-## 📦 环境要求
+## 📂 脚本版本说明
 
-*   **Python**: 3.8 或更高版本
-*   **操作系统**: Windows, macOS, Linux
-*   **硬件要求**:
-    *   **CPU**: 完全支持运行（推理速度较慢）
-    *   **GPU**: 可选（NVIDIA GPU + CUDA 12.x + cuDNN 9.x），可大幅加速特征提取过程
+本项目包含 4 个不同的脚本，请根据你的显卡类型和聚类需求选择运行：
 
-## 🛠️ 安装指南
+| 脚本名称 | 硬件加速 | 聚类算法 | 特点说明 |
+| :--- | :--- | :--- | :--- |
+| **`WaifuCluster.py`** | Nvidia CUDA | HDBSCAN | 专为 N 卡用户优化，需配置 CUDA 环境。输出**原图**。 |
+| **`WaifuClusterDirectML.py`** | DirectML | HDBSCAN | 适用于 A 卡/I 卡。运行时会自动扫描不同 Epsilon 下的聚类效果以供参考。输出**原图**。 |
+| **`WaifuClusterDirectMLOptics.py`** | DirectML | CCIP OPTICS | 适用于 A 卡/I 卡。采用 `imgutils` 官方的 OPTICS 算法，更适合多角色大杂烩图库。输出**裁切图**。 |
+| **`WaifuClusterAHC.py`** | DirectML | 凝聚层次聚类 (AHC) | 适用于 A 卡/I 卡。基于距离矩阵的层次聚类，**不会产生噪声点**，强制将所有图片归类。输出**裁切图**。 |
 
-### 1. 获取项目代码
+> **注意**：DirectML 版本的脚本使用了一种“黑魔法”（Monkey Patch），会拦截并强制将 ONNX Runtime 的计算提供者替换为 `DmlExecutionProvider`，从而让显卡接管计算。
 
-如果你还没有项目代码，请先克隆或下载本项目。
+## 📦 环境要求与安装指南
 
-### 2. 创建虚拟环境
-
-建议使用虚拟环境隔离项目依赖，避免与系统Python冲突。
-
+### 1. 创建虚拟环境
+建议使用虚拟环境隔离项目依赖。
 ```bash
 # 进入项目目录
 cd D:/WaifuCluster
@@ -41,100 +43,87 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-### 3. 安装依赖库
+### 2. 安装依赖库
 
-在激活的虚拟环境中，安装项目所需的所有库。
+根据你选择的脚本，安装对应的依赖：
 
+**通用依赖（所有脚本都需要）：**
 ```bash
-# 升级 pip
 python -m pip install --upgrade pip
-
-# 安装核心依赖
 pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
-
-# 可选：安装 GPU 版 ONNX Runtime (需要 CUDA 12.x + cuDNN 9.x)
-# pip install onnxruntime-gpu
 ```
 
-> **提示**：如果你不想配置复杂的 CUDA 环境，只需安装 `onnxruntime`（CPU版）即可，项目功能完全不受影响，只是运行速度稍慢。
+**选择安装 ONNX Runtime 运行后端：**
+- **Nvidia 显卡 (运行 `WaifuCluster.py`)**:
+  需要安装 CUDA 12.x + cuDNN 9.x 环境，并安装 GPU 版 ONNX Runtime：
+  ```bash
+  pip install onnxruntime-gpu
+  ```
+- **AMD/Intel 显卡 (运行 DirectML 系列脚本)**:
+  无需繁琐的 CUDA 配置，只需安装 DirectML 版 ONNX Runtime：
+  ```bash
+  pip install onnxruntime-directml
+  ```
+- **仅使用 CPU (应急退路)**:
+  ```bash
+  pip install onnxruntime
+  ```
 
 ## 🚀 快速开始
 
-1.  **准备图片**：将你需要整理的动漫图片放入一个文件夹（例如 `./fanart`）。
-2.  **配置路径**：打开 `WaifuCluster.py` 脚本，修改开头的 `SRC_DIR` 变量为你的图片文件夹路径。
-3.  **运行脚本**：
+1.  **准备图片**：将你需要整理的动漫图片放入项目根目录下的 `./fanart` 文件夹中。
+2.  *(可选)* **配置代理**：DirectML 系列脚本默认开启了代理 `http://127.0.0.1:7897`（用于下载 HuggingFace 模型）。如果你的网络不需要代理，请注释掉脚本开头的 `os.environ["HTTP_PROXY"]` 和 `os.environ["HTTPS_PROXY"]`。
+3.  **运行脚本**：根据你的硬件选择对应脚本运行。例如使用 DirectML + HDBSCAN：
     ```bash
-    python WaifuCluster.py
+    python WaifuClusterDirectML.py
     ```
-4.  **查看结果**：脚本运行完成后，会在 `OUT_DIR`（默认为 `./sorted`）目录下创建多个文件夹（`character_000`, `character_001`, ...），每个文件夹包含一组被判定为同一角色的图片。无法明确分组的图片会放入 `noise` 文件夹。
+4.  **查看结果**：脚本运行完成后，会在 `./sorted` 目录下创建多个文件夹（`character_000`, `character_001`, ...），包含被判定为同一角色的图片。无法明确分组的图片（如果有）会放入 `noise` 文件夹。中间产生的裁切图保存在 `./crops` 目录，距离矩阵保存在 `diff_matrix.npy`。
 
 ## ⚙️ 配置参数说明
 
-脚本中的关键参数集中在 `HDBSCAN` 聚类器和检测部分，你可以根据图片数量和期望的聚类效果进行调整：
+不同脚本的聚类参数有所不同，你可以打开对应的 `.py` 文件直接修改：
 
-| 参数名 | 位置 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `min_cluster_size` | `HDBSCAN` | `3` | 形成一个角色簇所需的最少图片数量。值越大，聚类越保守，小角色群可能被判为噪声。 |
-| `min_samples` | `HDBSCAN` | `2` | 核心距离计算时的邻居数，影响密度估计的平滑度。通常与 `min_cluster_size` 保持一致或更小。 |
-| `cluster_selection_method` | `HDBSCAN` | `'eom'` | 簇提取策略。`'eom'`（Excess of Mass）倾向于生成更稳定、更大的簇；`'leaf'` 则倾向于生成更多、更细碎的簇。 |
-| `score` | 检测部分 | `0.5` | YOLO人物检测的置信度阈值，低于此值的检测框会被忽略。 |
-| `bbox` 扩展比例 | 检测部分 | `1/4` | 为避免发型被切，将检测框向外扩展的比例。 |
+**1. 检测参数 (通用)：**
+*   `score < 0.5`：YOLO 头部检测的置信度阈值，低于此值的检测框会被忽略。
+*   `w // 4` / `h // 4`：检测框向外扩展的比例（默认 1/4），避免发型被切。
 
-## 📁 输出结构说明
+**2. HDBSCAN 参数 (`WaifuCluster.py` / `WaifuClusterDirectML.py`)：**
+*   `min_cluster_size=2`：形成一个角色簇所需的最少图片数量。
+*   `min_samples=1`：核心距离计算时的邻居数。
+*   `cluster_selection_epsilon`：距离阈值（CUDA版为0.05，DirectML版默认0.08）。值越小，同类要求越严格。
+*   `cluster_selection_method="leaf"`：簇提取策略，`leaf` 倾向于生成更细碎的簇，`eom` 倾向于更大的簇。
 
-脚本运行后，输出目录结构如下：
+**3. OPTICS 参数 (`WaifuClusterDirectMLOptics.py`)：**
+*   `min_samples=2`：相当于最小簇大小，控制聚类的严格度。
 
-```
-sorted/
-├── character_000/      # 被判定为第0个角色的所有原图
-│   ├── image1.jpg
-│   └── image2.png
-├── character_001/      # 被判定为第1个角色的所有原图
-│   └── ...
-├── ...
-└── noise/              # 无法明确归入任何角色簇的图片
-    └── ...
-```
+**4. AHC 参数 (`WaifuClusterAHC.py`)：**
+*   `distance_threshold=0.116`：层次聚类的合并距离阈值。越小同类要求越严格。脚本会打印出距离矩阵的 min/max/mean/median，建议根据 median 进行微调。
+*   *注意：AHC 算法默认会将所有样本强制分入某个簇，不会产生 `noise` 文件夹。*
 
 ## 🔧 工作原理简介
 
-本项目的技术流程可以概括为五步：
-
-1.  **人物检测裁切**：使用基于YOLO的动漫人物检测模型（`deepghs/anime_head_detection`）定位图片中的角色头部区域，并裁切成单人子图，避免多人图干扰特征提取。
-2.  **特征提取**：使用专为动漫角色设计的对比学习模型 **CCIP**（`deepghs/ccip`）将每个单人子图编码为一个768维的特征向量。该向量能有效捕捉角色身份信息，对画风、视角变化具有鲁棒性。
-3.  **距离计算**：计算所有特征向量两两之间的余弦距离，生成一个 N×N 的距离矩阵。
-4.  **密度聚类**：使用 **HDBSCAN** 算法对距离矩阵进行层次密度聚类。它无需预设簇数，能自动发现不同密度的角色簇，并将离群点标记为噪声。
-5.  **文件整理**：根据聚类标签，将原始图片复制到对应的角色文件夹中。
+1.  **人物检测裁切**：使用 YOLO 模型 (`head_detect_v2.0_x_yv11`) 定位图片中的角色头部区域，并适当扩边裁切成单人子图。
+2.  **特征提取**：使用 **CCIP** 模型 (`deepghs/ccip`) 将每个单人子图编码为特征向量。
+3.  **距离计算**：计算所有特征向量两两之间的差异，生成一个 N×N 的距离矩阵 (`diff_matrix.npy`)。
+4.  **密度/层次聚类**：根据所选脚本，使用 HDBSCAN、OPTICS 或 凝聚层次聚类 (AHC) 对距离矩阵进行计算，得出聚类标签。
+5.  **文件整理**：根据聚类标签，将原图或裁切图复制到 `./sorted` 目录对应的角色文件夹中。
 
 ## ❓ 常见问题
 
-**Q: 运行时出现 `cublasLt64_12.dll missing` 或 `Failed to create CUDAExecutionProvider` 警告？**
+**Q: 运行 DirectML 脚本报错 `DmlExecutionProvider` not available？**
+**A:** 请确保正确安装了 `onnxruntime-directml`。如果同时安装了 `onnxruntime-gpu` 可能会产生冲突，建议在虚拟环境中仅保留一个版本的 onnxruntime。
 
-**A:** 这是ONNX Runtime尝试加载GPU支持但失败的无害警告，它会自动回退到CPU模式。如果你不想看到此警告，可以安装纯CPU版的ONNX Runtime：`pip uninstall onnxruntime-gpu onnxruntime -y && pip install onnxruntime`。如果想用GPU，请确保已安装CUDA 12.x和cuDNN 9.x，并将其`bin`目录加入系统`PATH`环境变量。
+**Q: N 卡运行 `WaifuCluster.py` 报 `cublasLt64_12.dll missing`？**
+**A:** 脚本默认硬编码了 CUDA 12.4 的路径 (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin`)。如果你的 CUDA 版本或安装路径不同，请修改脚本顶部的 `cuda_bin_path` 变量。
 
-**Q: 聚类效果不好，很多图片被分到了 `noise` 文件夹？**
+**Q: 聚类效果不好，同一个角色被分成了好几个文件夹？**
+**A:** 这是密度/层次聚类的常见现象。你可以尝试调大 `distance_threshold` (AHC) 或 `cluster_selection_epsilon` (HDBSCAN)，或者将 HDBSCAN 的 `cluster_selection_method` 改为 `"eom"`。
 
-**A:** 尝试调小 `min_cluster_size` 和 `min_samples` 参数，让算法对噪声更宽容。也可以尝试将 `cluster_selection_method` 改为 `'leaf'`，看是否能生成更细的簇。
-
-**Q: 同一个角色被分到了多个文件夹？**
-
-**A:** 这可能是因为该角色画风差异过大，或CCIP模型对某些细节（如发型变化）不够敏感。可以尝试调大 `min_cluster_size`，或后处理时手动合并相似文件夹。
-
-**Q: 首次运行下载模型很慢？**
-
-**A:** 模型权重从HuggingFace Hub下载，国内网络可能不稳定。可以尝试设置镜像源或使用代理。下载完成后会缓存在本地（`~/.cache/huggingface`），后续运行无需再次下载。
-
-## 🗺️ 后续优化方向
-
-*   [ ] 将脚本重构为模块化结构，提高可维护性。
-*   [ ] 使用 `config.yaml` 集中管理所有配置参数。
-*   [ ] 预下载模型权重并内置到项目中，实现离线运行。
-*   [ ] 添加 Gradio 或 PyQT 图形界面，提升非技术用户体验。
-*   [ ] 引入 FAISS 进行近似最近邻搜索，优化大规模图片库的聚类速度。
-
+**Q: 首次运行卡在加载模型/下载模型很慢？**
+**A:** 模型权重从 HuggingFace Hub 下载。DirectML 脚本已内置代理设置，如果你没有开启代理软件，请务必注释掉脚本开头的代理代码，否则可能导致网络连接失败。下载完成后模型会缓存在项目目录的 `.hf_cache` 中。
 
 ## 🙏 致谢
 
 *   [DeepGHS](https://github.com/deepghs) 团队：提供了强大的 `imgutils` 库、CCIP 模型和动漫人物检测模型。
 *   [scikit-learn](https://scikit-learn.org/) 和 [HDBSCAN](https://github.com/scikit-learn-contrib/hdbscan) 社区：提供了核心的聚类算法实现。
-*   [ONNX Runtime](https://onnxruntime.ai/)：提供了高效的跨平台模型推理引擎。
+*   [ONNX Runtime](https://onnxruntime.ai/) 与 DirectML：提供了高效的跨平台及跨硬件模型推理引擎。
