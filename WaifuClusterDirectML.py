@@ -98,8 +98,8 @@ clusterer = hdbscan.HDBSCAN(
     metric="precomputed", # 使用预计算的距离矩阵
     min_cluster_size=2,   # 至少2张才算一个角色簇，可调
     min_samples=1,        # 至少1张才算一个核心点，可调
-    cluster_selection_epsilon=0.05,  # 聚类时的距离阈值，可调
-    cluster_selection_method="leaf", #  "eom" or "leaf"
+    cluster_selection_epsilon=threshold,  # 聚类时的距离阈值，可调
+    cluster_selection_method="eom", #  "eom" or "leaf"
 )
 labels = clusterer.fit_predict(diff_matrix_64)
 n_noise = list(labels).count(-1)
