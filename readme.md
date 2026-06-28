@@ -111,15 +111,19 @@ pip install dghs-imgutils scikit-learn hdbscan pillow numpy pyyaml
 ## ❓ 常见问题
 
 **Q: 运行 DirectML 脚本报错 `DmlExecutionProvider` not available？**
+
 **A:** 请确保正确安装了 `onnxruntime-directml`。如果同时安装了 `onnxruntime-gpu` 可能会产生冲突，建议在虚拟环境中仅保留一个版本的 onnxruntime。
 
 **Q: N 卡运行 `WaifuCluster.py` 报 `cublasLt64_12.dll missing`？**
+
 **A:** 脚本默认硬编码了 CUDA 12.4 的路径 (`C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin`)。如果你的 CUDA 版本或安装路径不同，请修改脚本顶部的 `cuda_bin_path` 变量。
 
 **Q: 聚类效果不好，同一个角色被分成了好几个文件夹？**
+
 **A:** 这是密度/层次聚类的常见现象。你可以尝试调大 `distance_threshold` (AHC) 或 `cluster_selection_epsilon` (HDBSCAN)，或者将 HDBSCAN 的 `cluster_selection_method` 改为 `"eom"`。
 
 **Q: 首次运行卡在加载模型/下载模型很慢？**
+
 **A:** 模型权重从 HuggingFace Hub 下载。DirectML 脚本已内置代理设置，如果你没有开启代理软件，请务必注释掉脚本开头的代理代码，否则可能导致网络连接失败。下载完成后模型会缓存在项目目录的 `.hf_cache` 中。
 
 ## 🙏 致谢
